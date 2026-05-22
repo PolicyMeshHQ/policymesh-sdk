@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 
 class ActionType(str, Enum):
@@ -54,8 +53,8 @@ class AgentAction:
     data_classification: DataClassification = DataClassification.INTERNAL
     environment: str = "development"
     record_count: int = 0
-    destination: Optional[str] = None
-    description: Optional[str] = None
+    destination: str | None = None
+    description: str | None = None
     metadata: dict = field(default_factory=dict)
 
 
@@ -66,7 +65,7 @@ class PolicyDecision:
     org_id: str
     action_type: str
     decision: Decision
-    policy_matched: Optional[str]
+    policy_matched: str | None
     would_have_blocked: bool
     message: str
 

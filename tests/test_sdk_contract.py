@@ -51,9 +51,10 @@ class SdkContractTests(unittest.TestCase):
 
     def test_package_versions_are_aligned(self):
         with (ROOT / "pyproject.toml").open("rb") as fh:
-            pyproject_version = tomllib.load(fh)["project"]["version"]
+            project = tomllib.load(fh)["project"]
 
-        self.assertEqual(policymesh.__version__, pyproject_version)
+        self.assertEqual(policymesh.__version__, project["version"])
+        self.assertEqual(project["requires-python"], ">=3.10")
 
     def test_package_includes_type_marker(self):
         self.assertTrue((ROOT / "policymesh" / "py.typed").exists())

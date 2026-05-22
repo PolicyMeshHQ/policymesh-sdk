@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0,<77.0", "wheel"]
+requires = ["setuptools>=77.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,10 +10,14 @@ authors = [
 ]
 description = "Python SDK for the PolicyMesh AI Agent Control Platform"
 readme = "README.md"
-license = { text = "MIT" }
-requires-python = ">=3.8"
+license = "MIT"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
     "Topic :: Security",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -48,13 +52,13 @@ policymesh = ["py.typed"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.10"
 ignore_missing_imports = true
 strict_optional = true
 warn_unused_ignores = true

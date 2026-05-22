@@ -2,6 +2,8 @@
 
 ## PolicyMeshClient
 
+Supported Python runtime: `3.10+`.
+
 ```python
 PolicyMeshClient(
     org_id: str,

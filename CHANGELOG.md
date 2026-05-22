@@ -13,3 +13,4 @@
 - Add runnable dry-run examples for OpenAI, Claude, LangChain, CrewAI, and custom agents.
 - Add staging smoke script.
 - Add CI, release runbook, and API reference.
+- Set supported Python policy to `3.10+`.

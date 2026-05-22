@@ -8,6 +8,7 @@ PolicyMesh lets teams evaluate agent actions before execution, scan untrusted in
 
 - Package: `policymesh`
 - Current SDK version: `0.4.0`
+- Supported Python: `3.10+`
 - API base path: `/api/v1`
 - Default production API: `https://policymesh-production.up.railway.app/api/v1`
 - Source repo: `https://github.com/Hail15/policymesh-sdk`

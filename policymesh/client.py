@@ -1,8 +1,9 @@
 import os
 import time
 import uuid
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, List, Optional
+from typing import Any
 
 import requests
 
@@ -36,13 +37,13 @@ class TraceStep:
         self,
         step: int,
         type: str,
-        timestamp: Optional[str] = None,
-        model: Optional[str] = None,
-        tool: Optional[str] = None,
-        input: Optional[str] = None,
-        output: Optional[str] = None,
-        duration_ms: Optional[int] = None,
-        metadata: Optional[dict] = None,
+        timestamp: str | None = None,
+        model: str | None = None,
+        tool: str | None = None,
+        input: str | None = None,
+        output: str | None = None,
+        duration_ms: int | None = None,
+        metadata: dict | None = None,
     ):
         self.step = step
         self.type = type
@@ -117,12 +118,12 @@ class PolicyMeshClient:
         api_url: str = DEFAULT_API_URL,
         raise_on_block: bool = True,
         raise_on_escalate: bool = False,
-        agent_id: Optional[str] = None,
+        agent_id: str | None = None,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
         max_retries: int = 0,
         fail_open: bool = False,
-        admin_token: Optional[str] = None,
-        session: Optional[requests.Session] = None,
+        admin_token: str | None = None,
+        session: requests.Session | None = None,
     ):
         self.org_id = org_id
         self.api_key = api_key
@@ -139,8 +140,8 @@ class PolicyMeshClient:
     def _headers(
         self,
         *,
-        bearer_token: Optional[str] = None,
-        request_id: Optional[str] = None,
+        bearer_token: str | None = None,
+        request_id: str | None = None,
         include_api_key: bool = True,
     ) -> dict:
         headers = {
@@ -234,13 +235,13 @@ class PolicyMeshClient:
         method: str,
         path: str,
         *,
-        json_payload: Optional[dict] = None,
-        params: Optional[dict] = None,
-        bearer_token: Optional[str] = None,
+        json_payload: dict | None = None,
+        params: dict | None = None,
+        bearer_token: str | None = None,
         include_api_key: bool = True,
     ) -> dict:
         attempts = self.max_retries + 1
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
 
         for attempt in range(attempts):
             request_id = str(uuid.uuid4())
@@ -296,10 +297,10 @@ class PolicyMeshClient:
         data_classification: str = "internal",
         environment: str = "development",
         record_count: int = 0,
-        destination: Optional[str] = None,
-        description: Optional[str] = None,
-        metadata: Optional[dict] = None,
-        trace: Optional[List[TraceStep]] = None,
+        destination: str | None = None,
+        description: str | None = None,
+        metadata: dict | None = None,
+        trace: list[TraceStep] | None = None,
     ) -> PolicyDecision:
         """Evaluate an agent action before execution."""
 
@@ -348,9 +349,9 @@ class PolicyMeshClient:
     def scan(
         self,
         content: str,
-        agent_id: Optional[str] = None,
+        agent_id: str | None = None,
         content_type: str = "text",
-        source: Optional[str] = None,
+        source: str | None = None,
         scan_type: str = "full",
         raise_on_block: bool = False,
     ) -> ScanResult:
@@ -378,12 +379,12 @@ class PolicyMeshClient:
     def inspect_payload(
         self,
         action_type: str,
-        agent_id: Optional[str] = None,
-        destination: Optional[str] = None,
-        payload: Optional[dict] = None,
-        tool_name: Optional[str] = None,
-        approved_domains: Optional[List[str]] = None,
-        approved_tools: Optional[List[str]] = None,
+        agent_id: str | None = None,
+        destination: str | None = None,
+        payload: dict | None = None,
+        tool_name: str | None = None,
+        approved_domains: list[str] | None = None,
+        approved_tools: list[str] | None = None,
         raise_on_block: bool = False,
     ) -> ScanResult:
         """Inspect an outbound payload before an agent sends it."""
@@ -412,9 +413,9 @@ class PolicyMeshClient:
     def check_tool(
         self,
         tool_name: str,
-        agent_id: Optional[str] = None,
-        approved_tools: Optional[List[str]] = None,
-        blocklisted_tools: Optional[List[str]] = None,
+        agent_id: str | None = None,
+        approved_tools: list[str] | None = None,
+        blocklisted_tools: list[str] | None = None,
         raise_on_block: bool = False,
     ) -> ScanResult:
         """Check whether a tool is allowed before using it."""
@@ -453,10 +454,10 @@ class PolicyMeshClient:
     def kill(
         self,
         agent_id: str,
-        reason: Optional[str] = None,
-        killed_by: Optional[str] = None,
-        expires_hours: Optional[int] = None,
-        admin_token: Optional[str] = None,
+        reason: str | None = None,
+        killed_by: str | None = None,
+        expires_hours: int | None = None,
+        admin_token: str | None = None,
     ) -> dict:
         """Disable an agent using authenticated dashboard-user context."""
 
@@ -480,7 +481,7 @@ class PolicyMeshClient:
             include_api_key=False,
         )
 
-    def revive(self, agent_id: str, admin_token: Optional[str] = None) -> dict:
+    def revive(self, agent_id: str, admin_token: str | None = None) -> dict:
         """Re-enable a disabled agent using authenticated dashboard-user context."""
 
         token = admin_token or self.admin_token
@@ -504,10 +505,10 @@ class PolicyMeshClient:
         data_classification: str = "internal",
         environment: str = "development",
         record_count: int = 0,
-        destination: Optional[str] = None,
-        description: Optional[str] = None,
-        metadata: Optional[dict] = None,
-        trace: Optional[List[TraceStep]] = None,
+        destination: str | None = None,
+        description: str | None = None,
+        metadata: dict | None = None,
+        trace: list[TraceStep] | None = None,
     ) -> Callable:
         """Decorator that runs PolicyMesh evaluation before a function."""
 

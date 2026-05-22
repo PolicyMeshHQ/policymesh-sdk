@@ -1,4 +1,5 @@
-from typing import Any, Dict, Iterable, Optional, Tuple
+from collections.abc import Iterable
+from typing import Any
 
 from policymesh.client import PolicyMeshClient, ScanResult
 from policymesh.models import PolicyDecision
@@ -15,11 +16,11 @@ class PolicyMeshAdapter:
         self,
         prompt: str,
         *,
-        model: Optional[str] = None,
+        model: str | None = None,
         source: str = "user_prompt",
         environment: str = "development",
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[ScanResult, PolicyDecision]:
+        metadata: dict[str, Any] | None = None,
+    ) -> tuple[ScanResult, PolicyDecision]:
         scan = self.client.scan(
             agent_id=self.agent_id,
             content=prompt,
@@ -43,10 +44,10 @@ class PolicyMeshAdapter:
         *,
         action_type: str = "external_api_call",
         environment: str = "development",
-        approved_tools: Optional[Iterable[str]] = None,
-        blocklisted_tools: Optional[Iterable[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[ScanResult, PolicyDecision]:
+        approved_tools: Iterable[str] | None = None,
+        blocklisted_tools: Iterable[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> tuple[ScanResult, PolicyDecision]:
         tool_check = self.client.check_tool(
             agent_id=self.agent_id,
             tool_name=tool_name,
@@ -66,11 +67,11 @@ class PolicyMeshAdapter:
 
     def before_output(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         *,
         action_type: str = "external_api_call",
-        destination: Optional[str] = None,
-        approved_domains: Optional[Iterable[str]] = None,
+        destination: str | None = None,
+        approved_domains: Iterable[str] | None = None,
     ) -> ScanResult:
         return self.client.inspect_payload(
             agent_id=self.agent_id,
