@@ -1,15 +1,33 @@
 from dataclasses import dataclass, field
-from typing import Optional
 from enum import Enum
 
 
 class ActionType(str, Enum):
     DATA_EXPORT = "data_export"
-    EXTERNAL_EMAIL = "external_email"
-    PRODUCTION_DEPLOY = "production_deploy"
-    PERMISSION_CHANGE = "permission_change"
-    PAYMENT = "payment"
     DATA_ACCESS = "data_access"
+    DATA_DELETE = "data_delete"
+    DATA_MODIFY = "data_modify"
+    EXTERNAL_EMAIL = "external_email"
+    EXTERNAL_MESSAGE = "external_message"
+    WEBHOOK_CALL = "webhook_call"
+    PRODUCTION_DEPLOY = "production_deploy"
+    CODE_EXECUTION = "code_execution"
+    FILE_READ = "file_read"
+    FILE_WRITE = "file_write"
+    FILE_DELETE = "file_delete"
+    PERMISSION_CHANGE = "permission_change"
+    AUTH_CHANGE = "auth_change"
+    API_KEY_CREATE = "api_key_create"
+    PAYMENT = "payment"
+    VENDOR_ACTION = "vendor_action"
+    EXTERNAL_API_CALL = "external_api_call"
+    WEB_BROWSE = "web_browse"
+    WEB_SCRAPE = "web_scrape"
+    DATABASE_QUERY = "database_query"
+    DATABASE_WRITE = "database_write"
+    DATABASE_DELETE = "database_delete"
+    MODEL_CALL = "model_call"
+    PROMPT_INJECTION = "prompt_injection"
     CUSTOM = "custom"
 
 
@@ -33,10 +51,10 @@ class AgentAction:
     org_id: str
     action_type: ActionType
     data_classification: DataClassification = DataClassification.INTERNAL
-    environment: str = "production"
+    environment: str = "development"
     record_count: int = 0
-    destination: Optional[str] = None
-    description: Optional[str] = None
+    destination: str | None = None
+    description: str | None = None
     metadata: dict = field(default_factory=dict)
 
 
@@ -47,7 +65,7 @@ class PolicyDecision:
     org_id: str
     action_type: str
     decision: Decision
-    policy_matched: Optional[str]
+    policy_matched: str | None
     would_have_blocked: bool
     message: str
 

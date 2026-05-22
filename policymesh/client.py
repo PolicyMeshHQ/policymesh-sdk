@@ -1,38 +1,49 @@
+import os
+import time
+import uuid
+from collections.abc import Callable
+from functools import wraps
+from typing import Any
+
 import requests
-from typing import Optional, List
-from policymesh.models import AgentAction, PolicyDecision, Decision, ActionType, DataClassification
+
 from policymesh.exceptions import (
     PolicyBlockedError,
     PolicyEscalateError,
+    PolicyMeshAuthError,
     PolicyMeshConnectionError,
-    PolicyMeshAuthError
+    PolicyMeshError,
+    PolicyMeshForbiddenError,
+    PolicyMeshRateLimitError,
+    PolicyMeshServerError,
+    PolicyMeshTimeoutError,
+    PolicyMeshUnexpectedResponseError,
+    PolicyMeshValidationError,
 )
+from policymesh.models import Decision, PolicyDecision
 
-DEFAULT_API_URL = "https://policymesh-production.up.railway.app/api/v1"
+SDK_VERSION = "0.4.0"
+DEFAULT_API_URL = os.environ.get(
+    "POLICYMESH_API_URL",
+    "https://policymesh-production.up.railway.app/api/v1",
+)
+DEFAULT_TIMEOUT_SECONDS = float(os.environ.get("POLICYMESH_TIMEOUT_SECONDS", "10"))
 
 
 class TraceStep:
-    """
-    Represents a single step in an agent's execution trace.
+    """Represents a single step in an agent execution trace."""
 
-    Usage:
-        trace = [
-            TraceStep(step=1, type="model_call", model="gpt-4", input="summarize data", output="querying db..."),
-            TraceStep(step=2, type="tool_call", tool="database_query", output="1500 records returned"),
-            TraceStep(step=3, type="action", input="export to email"),
-        ]
-    """
     def __init__(
         self,
         step: int,
         type: str,
-        timestamp: Optional[str] = None,
-        model: Optional[str] = None,
-        tool: Optional[str] = None,
-        input: Optional[str] = None,
-        output: Optional[str] = None,
-        duration_ms: Optional[int] = None,
-        metadata: Optional[dict] = None
+        timestamp: str | None = None,
+        model: str | None = None,
+        tool: str | None = None,
+        input: str | None = None,
+        output: str | None = None,
+        duration_ms: int | None = None,
+        metadata: dict | None = None,
     ):
         self.step = step
         self.type = type
@@ -44,7 +55,7 @@ class TraceStep:
         self.duration_ms = duration_ms
         self.metadata = metadata or {}
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             "step": self.step,
             "type": self.type,
@@ -54,28 +65,19 @@ class TraceStep:
             "input": self.input,
             "output": self.output,
             "duration_ms": self.duration_ms,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
 
 class ScanResult:
-    """
-    Result of a content or payload scan.
+    """Result of a content, payload, or tool scan."""
 
-    Attributes:
-        risk_score      0-100. >= 70 = block, 40-69 = flag, < 40 = allow
-        recommendation  "block", "flag", or "allow"
-        safe            True if risk_score < 40
-        findings        List of detected threats with type, description, severity
-        findings_count  Number of findings
-        message         Human-readable summary
-    """
     def __init__(self, data: dict):
         self.risk_score = data.get("risk_score", 0)
         self.recommendation = data.get("recommendation", "allow")
         self.safe = data.get("safe", True)
         self.findings = data.get("findings", [])
-        self.findings_count = data.get("findings_count", 0)
+        self.findings_count = data.get("findings_count", len(self.findings))
         self.message = data.get("message", "")
         self.raw = data
 
@@ -91,55 +93,22 @@ class ScanResult:
     def is_safe(self) -> bool:
         return self.recommendation == "allow"
 
-    def __repr__(self):
-        return f"ScanResult(risk_score={self.risk_score}, recommendation={self.recommendation}, findings={self.findings_count})"
+    def __repr__(self) -> str:
+        return (
+            "ScanResult("
+            f"risk_score={self.risk_score}, "
+            f"recommendation={self.recommendation}, "
+            f"findings={self.findings_count})"
+        )
 
 
 class PolicyMeshClient:
     """
-    PolicyMesh Python SDK v0.4.0
+    PolicyMesh Python SDK.
 
-    Three methods for full 360-degree agent governance:
-
-        evaluate()        — controls what agents DO
-        scan()            — controls what agents SEE (input scanning)
-        inspect_payload() — controls what agents SEND (output scanning)
-
-    Plus killswitch controls:
-
-        kill()            — instantly disable a specific agent
-        revive()          — re-enable a killed agent
-
-    Usage:
-        from policymesh import PolicyMeshClient, TraceStep
-
-        client = PolicyMeshClient(
-            org_id="your_org_id",
-            api_key="your_api_key"
-        )
-
-        # 1. Scan content before agent processes it
-        scan = client.scan(content=webpage_html, source="https://example.com")
-        if scan.is_blocked:
-            raise Exception(f"Unsafe content: {scan.message}")
-
-        # 2. Evaluate the action the agent wants to take
-        decision = client.evaluate(
-            agent_id="my_agent",
-            action_type="data_export",
-            data_classification="confidential",
-            record_count=1500,
-            destination="external@gmail.com"
-        )
-
-        # 3. Inspect outbound payload before sending
-        payload_check = client.inspect_payload(
-            action_type="external_api_call",
-            destination="https://api.partner.com",
-            payload={"customer_data": records}
-        )
-        if payload_check.is_blocked:
-            raise Exception(f"Payload blocked: {payload_check.message}")
+    Agent-facing methods use an organization API key. Administrative methods
+    such as kill() and revive() require an authenticated dashboard user bearer
+    token through admin_token.
     """
 
     def __init__(
@@ -149,80 +118,192 @@ class PolicyMeshClient:
         api_url: str = DEFAULT_API_URL,
         raise_on_block: bool = True,
         raise_on_escalate: bool = False,
-        agent_id: Optional[str] = None
+        agent_id: str | None = None,
+        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        max_retries: int = 0,
+        fail_open: bool = False,
+        admin_token: str | None = None,
+        session: requests.Session | None = None,
     ):
         self.org_id = org_id
         self.api_key = api_key
         self.api_url = api_url.rstrip("/")
         self.raise_on_block = raise_on_block
         self.raise_on_escalate = raise_on_escalate
-        self.default_agent_id = agent_id  # Set once, use everywhere
+        self.default_agent_id = agent_id
+        self.timeout = timeout
+        self.max_retries = max(0, max_retries)
+        self.fail_open = fail_open
+        self.admin_token = admin_token
+        self.session = session or requests.Session()
 
-    def _headers(self) -> dict:
-        return {
-            "x-api-key": self.api_key,
-            "Content-Type": "application/json"
+    def _headers(
+        self,
+        *,
+        bearer_token: str | None = None,
+        request_id: str | None = None,
+        include_api_key: bool = True,
+    ) -> dict:
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": f"policymesh-python/{SDK_VERSION}",
+            "X-PolicyMesh-SDK": f"python/{SDK_VERSION}",
+            "X-Request-ID": request_id or str(uuid.uuid4()),
         }
 
-    def _post(self, path: str, payload: dict) -> dict:
-        try:
-            response = requests.post(
-                f"{self.api_url}{path}",
-                json=payload,
-                headers=self._headers(),
-                timeout=10
-            )
-            if response.status_code == 401:
-                raise PolicyMeshAuthError(
-                    "Authentication failed. Check your api_key and org_id. "
-                    "Generate API keys at https://policymesh.net"
-                )
-            if response.status_code == 429:
-                raise PolicyMeshConnectionError(
-                    f"Rate limit exceeded: {response.json().get('detail', 'Monthly action limit reached.')}"
-                )
-            if response.status_code not in (200, 201):
-                raise PolicyMeshConnectionError(
-                    f"PolicyMesh API returned {response.status_code}: {response.text}"
-                )
-            return response.json()
-        except (PolicyBlockedError, PolicyEscalateError, PolicyMeshAuthError, PolicyMeshConnectionError):
-            raise
-        except requests.exceptions.ConnectionError:
-            raise PolicyMeshConnectionError(
-                "Could not connect to PolicyMesh API. Check your network connection."
-            )
-        except requests.exceptions.Timeout:
-            raise PolicyMeshConnectionError(
-                "PolicyMesh API timed out. Try again or check your connection."
-            )
-        except Exception as e:
-            raise PolicyMeshConnectionError(f"Unexpected error: {e}")
+        if include_api_key:
+            headers["x-api-key"] = self.api_key
+        if bearer_token:
+            headers["Authorization"] = f"Bearer {bearer_token}"
 
-    # ── EVALUATE ─────────────────────────────────────────────────────────────
+        return headers
+
+    @staticmethod
+    def _response_json(response: requests.Response) -> dict:
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise PolicyMeshUnexpectedResponseError(
+                f"PolicyMesh API returned non-JSON response: {response.text[:200]}",
+                status_code=response.status_code,
+                response=response.text,
+                request_id=response.request.headers.get("X-Request-ID")
+                if response.request
+                else None,
+            ) from exc
+
+        if not isinstance(data, dict):
+            raise PolicyMeshUnexpectedResponseError(
+                "PolicyMesh API returned an unexpected JSON payload.",
+                status_code=response.status_code,
+                response=data,
+                request_id=response.request.headers.get("X-Request-ID")
+                if response.request
+                else None,
+            )
+
+        return data
+
+    @staticmethod
+    def _detail(data: Any, default: str) -> str:
+        if isinstance(data, dict):
+            detail = data.get("detail") or data.get("message") or default
+            return str(detail)
+        return default
+
+    def _raise_for_status(self, response: requests.Response) -> None:
+        if 200 <= response.status_code < 300:
+            return
+
+        request_id = (
+            response.request.headers.get("X-Request-ID")
+            if response.request
+            else response.headers.get("X-Request-ID")
+        )
+
+        try:
+            data = response.json()
+        except ValueError:
+            data = {"detail": response.text}
+
+        message = self._detail(
+            data,
+            f"PolicyMesh API returned HTTP {response.status_code}",
+        )
+
+        kwargs = {
+            "status_code": response.status_code,
+            "response": data,
+            "request_id": request_id,
+        }
+
+        if response.status_code == 400 or response.status_code == 422:
+            raise PolicyMeshValidationError(message, **kwargs)
+        if response.status_code == 401:
+            raise PolicyMeshAuthError(message, **kwargs)
+        if response.status_code == 403:
+            raise PolicyMeshForbiddenError(message, **kwargs)
+        if response.status_code == 429:
+            raise PolicyMeshRateLimitError(message, **kwargs)
+        if response.status_code >= 500:
+            raise PolicyMeshServerError(message, **kwargs)
+
+        raise PolicyMeshUnexpectedResponseError(message, **kwargs)
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_payload: dict | None = None,
+        params: dict | None = None,
+        bearer_token: str | None = None,
+        include_api_key: bool = True,
+    ) -> dict:
+        attempts = self.max_retries + 1
+        last_error: Exception | None = None
+
+        for attempt in range(attempts):
+            request_id = str(uuid.uuid4())
+            try:
+                response = self.session.request(
+                    method,
+                    f"{self.api_url}{path}",
+                    json=json_payload,
+                    params=params,
+                    headers=self._headers(
+                        bearer_token=bearer_token,
+                        request_id=request_id,
+                        include_api_key=include_api_key,
+                    ),
+                    timeout=self.timeout,
+                )
+                self._raise_for_status(response)
+                if response.status_code == 204:
+                    return {}
+                return self._response_json(response)
+            except requests.exceptions.Timeout as exc:
+                last_error = PolicyMeshTimeoutError(
+                    "PolicyMesh API timed out.",
+                    request_id=request_id,
+                )
+                if attempt == attempts - 1:
+                    raise last_error from exc
+            except requests.exceptions.ConnectionError as exc:
+                last_error = PolicyMeshConnectionError(
+                    "Could not connect to PolicyMesh API.",
+                    request_id=request_id,
+                )
+                if attempt == attempts - 1:
+                    raise last_error from exc
+            except PolicyMeshServerError:
+                if attempt == attempts - 1:
+                    raise
+                last_error = None
+            except PolicyMeshError:
+                raise
+
+            time.sleep(min(0.25 * (2**attempt), 2.0))
+
+        raise PolicyMeshConnectionError(f"PolicyMesh request failed: {last_error}")
+
+    def _post(self, path: str, payload: dict) -> dict:
+        return self._request("POST", path, json_payload=payload)
 
     def evaluate(
         self,
         agent_id: str,
         action_type: str,
         data_classification: str = "internal",
-        environment: str = "production",
+        environment: str = "development",
         record_count: int = 0,
-        destination: Optional[str] = None,
-        description: Optional[str] = None,
-        metadata: Optional[dict] = None,
-        trace: Optional[List[TraceStep]] = None
+        destination: str | None = None,
+        description: str | None = None,
+        metadata: dict | None = None,
+        trace: list[TraceStep] | None = None,
     ) -> PolicyDecision:
-        """
-        Evaluate an agent action against PolicyMesh policies.
+        """Evaluate an agent action before execution."""
 
-        This is the core method — call it before any agent action.
-        Optionally include a trace of the agent's execution chain for
-        full decision explainability in the dashboard.
-
-        Returns a PolicyDecision. Raises PolicyBlockedError if blocked
-        and raise_on_block=True (default).
-        """
         payload = {
             "agent_id": agent_id,
             "org_id": self.org_id,
@@ -233,7 +314,7 @@ class PolicyMeshClient:
             "destination": destination,
             "description": description,
             "metadata": metadata or {},
-            "trace": [t.to_dict() for t in trace] if trace else []
+            "trace": [step.to_dict() for step in trace] if trace else [],
         }
 
         data = self._post("/evaluate", payload)
@@ -246,124 +327,68 @@ class PolicyMeshClient:
             decision=Decision(data["decision"]),
             policy_matched=data.get("policy_matched"),
             would_have_blocked=data.get("would_have_blocked", False),
-            message=data.get("message", "")
+            message=data.get("message", ""),
         )
 
         if self.raise_on_block and decision.is_blocked:
             raise PolicyBlockedError(
                 f"Action blocked by PolicyMesh: {decision.policy_matched}",
                 action_id=decision.action_id,
-                policy_matched=decision.policy_matched
+                policy_matched=decision.policy_matched,
             )
 
         if self.raise_on_escalate and decision.is_escalated:
             raise PolicyEscalateError(
                 f"Action requires approval: {decision.policy_matched}",
                 action_id=decision.action_id,
-                policy_matched=decision.policy_matched
+                policy_matched=decision.policy_matched,
             )
 
         return decision
 
-    # ── SCAN ─────────────────────────────────────────────────────────────────
-
     def scan(
         self,
         content: str,
-        agent_id: Optional[str] = None,
+        agent_id: str | None = None,
         content_type: str = "text",
-        source: Optional[str] = None,
+        source: str | None = None,
         scan_type: str = "full",
-        raise_on_block: bool = False
+        raise_on_block: bool = False,
     ) -> ScanResult:
-        """
-        Scan content for prompt injection and sensitive data before
-        your agent processes it.
+        """Scan content before an agent processes it."""
 
-        Call this before feeding web pages, documents, database results,
-        user inputs, or any external content to your agent.
-
-        Args:
-            content       The text content to scan
-            agent_id      Which agent will process this content
-            content_type  "text", "html", "json", or "url"
-            source        Where the content came from (URL, filename, etc.)
-            scan_type     "full", "injection_only", or "sensitive_only"
-            raise_on_block If True, raises PolicyBlockedError when blocked
-
-        Returns a ScanResult with risk_score, recommendation, and findings.
-
-        Example:
-            scan = client.scan(
-                content=webpage_content,
-                source="https://example.com",
-                content_type="html"
-            )
-            if scan.is_blocked:
-                raise Exception("Unsafe content detected")
-        """
         payload = {
             "org_id": self.org_id,
             "agent_id": agent_id or self.default_agent_id or "sdk_agent",
             "content": content,
             "content_type": content_type,
             "source": source,
-            "scan_type": scan_type
+            "scan_type": scan_type,
         }
 
-        data = self._post("/scan/content", payload)
-        result = ScanResult(data)
+        result = ScanResult(self._post("/scan/content", payload))
 
         if raise_on_block and result.is_blocked:
             raise PolicyBlockedError(
                 f"Content blocked by PolicyMesh scanner: {result.message}",
-                action_id=None,
-                policy_matched=f"Content Scan — {result.findings_count} findings"
+                policy_matched=f"Content Scan: {result.findings_count} findings",
             )
 
         return result
 
-    # ── INSPECT PAYLOAD ───────────────────────────────────────────────────────
-
     def inspect_payload(
         self,
         action_type: str,
-        agent_id: Optional[str] = None,
-        destination: Optional[str] = None,
-        payload: Optional[dict] = None,
-        tool_name: Optional[str] = None,
-        approved_domains: Optional[List[str]] = None,
-        approved_tools: Optional[List[str]] = None,
-        raise_on_block: bool = False
+        agent_id: str | None = None,
+        destination: str | None = None,
+        payload: dict | None = None,
+        tool_name: str | None = None,
+        approved_domains: list[str] | None = None,
+        approved_tools: list[str] | None = None,
+        raise_on_block: bool = False,
     ) -> ScanResult:
-        """
-        Inspect an outbound payload before your agent sends it.
+        """Inspect an outbound payload before an agent sends it."""
 
-        Checks for sensitive data exfiltration, unapproved destinations,
-        unapproved tool usage, and suspicious patterns in outbound data.
-
-        Args:
-            action_type     The type of action being performed
-            agent_id        Which agent is sending this payload
-            destination     Where the payload is being sent (URL, email, etc.)
-            payload         The data being sent (dict)
-            tool_name       Name of the tool being called
-            approved_domains List of allowed destination domains
-            approved_tools  List of allowed tool names
-            raise_on_block  If True, raises PolicyBlockedError when blocked
-
-        Returns a ScanResult with risk_score, recommendation, and findings.
-
-        Example:
-            check = client.inspect_payload(
-                action_type="external_api_call",
-                destination="https://api.partner.com",
-                payload={"records": customer_data},
-                approved_domains=["api.partner.com", "api.stripe.com"]
-            )
-            if check.is_blocked:
-                raise Exception("Payload blocked — sensitive data detected")
-        """
         body = {
             "org_id": self.org_id,
             "agent_id": agent_id or self.default_agent_id or "sdk_agent",
@@ -372,173 +397,124 @@ class PolicyMeshClient:
             "payload": payload or {},
             "tool_name": tool_name,
             "approved_domains": approved_domains,
-            "approved_tools": approved_tools
+            "approved_tools": approved_tools,
         }
 
-        data = self._post("/scan/payload", body)
-        result = ScanResult(data)
+        result = ScanResult(self._post("/scan/payload", body))
 
         if raise_on_block and result.is_blocked:
             raise PolicyBlockedError(
                 f"Payload blocked by PolicyMesh: {result.message}",
-                action_id=None,
-                policy_matched=f"Payload Inspection — {result.findings_count} findings"
+                policy_matched=f"Payload Inspection: {result.findings_count} findings",
             )
 
         return result
 
-    # ── CHECK TOOL ────────────────────────────────────────────────────────────
-
     def check_tool(
         self,
         tool_name: str,
-        agent_id: Optional[str] = None,
-        approved_tools: Optional[List[str]] = None,
-        blocklisted_tools: Optional[List[str]] = None,
-        raise_on_block: bool = False
+        agent_id: str | None = None,
+        approved_tools: list[str] | None = None,
+        blocklisted_tools: list[str] | None = None,
+        raise_on_block: bool = False,
     ) -> ScanResult:
-        """
-        Check if a tool is on the allowlist or blocklist before use.
+        """Check whether a tool is allowed before using it."""
 
-        Args:
-            tool_name         The name of the tool the agent wants to use
-            agent_id          Which agent is using the tool
-            approved_tools    List of allowed tool names
-            blocklisted_tools List of blocked tool names
-            raise_on_block    If True, raises PolicyBlockedError when blocked
+        data = self._request(
+            "POST",
+            "/scan/tool",
+            params={
+                "org_id": self.org_id,
+                "agent_id": agent_id or self.default_agent_id or "sdk_agent",
+                "tool_name": tool_name,
+                "approved_tools": approved_tools,
+                "blocklisted_tools": blocklisted_tools,
+            },
+        )
 
-        Returns a ScanResult indicating if the tool is allowed.
-
-        Example:
-            check = client.check_tool(
-                tool_name="zapier_webhook",
-                approved_tools=["database_query", "email_send", "web_search"]
-            )
-            if not check.is_safe:
-                raise Exception(f"Tool not allowed: {tool_name}")
-        """
-        try:
-            response = requests.post(
-                f"{self.api_url}/scan/tool",
-                params={
-                    "org_id": self.org_id,
-                    "agent_id": agent_id or self.default_agent_id or "sdk_agent",
-                    "tool_name": tool_name,
-                    "approved_tools": approved_tools,
-                    "blocklisted_tools": blocklisted_tools
-                },
-                headers=self._headers(),
-                timeout=10
-            )
-            data = response.json()
-            result = ScanResult({
+        result = ScanResult(
+            {
                 "risk_score": data.get("risk_score", 0),
                 "recommendation": "allow" if data.get("allowed") else "block",
                 "safe": data.get("allowed", True),
                 "findings": data.get("findings", []),
                 "findings_count": len(data.get("findings", [])),
-                "message": data.get("message", "")
-            })
+                "message": data.get("message", ""),
+            }
+        )
 
-            if raise_on_block and not result.is_safe:
-                raise PolicyBlockedError(
-                    f"Tool '{tool_name}' blocked by PolicyMesh",
-                    action_id=None,
-                    policy_matched="Tool Blocklist"
-                )
+        if raise_on_block and not result.is_safe:
+            raise PolicyBlockedError(
+                f"Tool '{tool_name}' blocked by PolicyMesh",
+                policy_matched="Tool Blocklist",
+            )
 
-            return result
-        except PolicyBlockedError:
-            raise
-        except Exception as e:
-            raise PolicyMeshConnectionError(f"Tool check failed: {e}")
-
-    # ── KILLSWITCH ────────────────────────────────────────────────────────────
+        return result
 
     def kill(
         self,
         agent_id: str,
-        reason: Optional[str] = None,
-        killed_by: Optional[str] = None,
-        expires_hours: Optional[int] = None
+        reason: str | None = None,
+        killed_by: str | None = None,
+        expires_hours: int | None = None,
+        admin_token: str | None = None,
     ) -> dict:
-        """
-        Instantly disable an agent. All evaluate() calls from this agent
-        will return BLOCK immediately until revived.
+        """Disable an agent using authenticated dashboard-user context."""
 
-        Args:
-            agent_id      The agent to kill
-            reason        Why the agent is being killed
-            killed_by     Who is killing the agent (email or name)
-            expires_hours Auto-revive after this many hours (None = permanent)
-
-        Returns dict with success status and message.
-
-        Example:
-            client.kill(
-                agent_id="rogue_agent_01",
-                reason="Suspicious data access pattern detected",
-                killed_by="security@company.com"
+        token = admin_token or self.admin_token
+        if not token:
+            raise PolicyMeshAuthError(
+                "kill() requires admin_token because killswitch routes require "
+                "authenticated dashboard user context."
             )
-        """
-        payload = {
-            "agent_id": agent_id,
-            "reason": reason or "Disabled via SDK",
-            "killed_by": killed_by,
-            "expires_hours": expires_hours
-        }
-        try:
-            response = requests.post(
-                f"{self.api_url}/killswitch/{self.org_id}/agent",
-                json=payload,
-                headers=self._headers(),
-                timeout=10
+
+        return self._request(
+            "POST",
+            f"/killswitch/{self.org_id}/agent",
+            json_payload={
+                "agent_id": agent_id,
+                "reason": reason or "Disabled via SDK",
+                "killed_by": killed_by,
+                "expires_hours": expires_hours,
+            },
+            bearer_token=token,
+            include_api_key=False,
+        )
+
+    def revive(self, agent_id: str, admin_token: str | None = None) -> dict:
+        """Re-enable a disabled agent using authenticated dashboard-user context."""
+
+        token = admin_token or self.admin_token
+        if not token:
+            raise PolicyMeshAuthError(
+                "revive() requires admin_token because killswitch routes require "
+                "authenticated dashboard user context."
             )
-            return response.json()
-        except Exception as e:
-            raise PolicyMeshConnectionError(f"Kill failed: {e}")
 
-    def revive(self, agent_id: str) -> dict:
-        """
-        Re-enable a killed agent.
-
-        Example:
-            client.revive("rogue_agent_01")
-        """
-        try:
-            response = requests.delete(
-                f"{self.api_url}/killswitch/{self.org_id}/agent/{agent_id}",
-                headers=self._headers(),
-                timeout=10
-            )
-            return response.json()
-        except Exception as e:
-            raise PolicyMeshConnectionError(f"Revive failed: {e}")
-
-    # ── GUARD DECORATOR ───────────────────────────────────────────────────────
+        return self._request(
+            "DELETE",
+            f"/killswitch/{self.org_id}/agent/{agent_id}",
+            bearer_token=token,
+            include_api_key=False,
+        )
 
     def guard(
         self,
         action_type: str,
         agent_id: str = "sdk_agent",
         data_classification: str = "internal",
-        environment: str = "production",
+        environment: str = "development",
         record_count: int = 0,
-        destination: Optional[str] = None,
-        description: Optional[str] = None,
-        metadata: Optional[dict] = None,
-        trace: Optional[List[TraceStep]] = None
-    ):
-        """
-        Decorator that wraps a function with PolicyMesh evaluation.
+        destination: str | None = None,
+        description: str | None = None,
+        metadata: dict | None = None,
+        trace: list[TraceStep] | None = None,
+    ) -> Callable:
+        """Decorator that runs PolicyMesh evaluation before a function."""
 
-        Example:
-            @client.guard(action_type="data_export", agent_id="my_agent")
-            def export_customer_data():
-                ...
-        """
-        def decorator(func):
-            def wrapper(*args, **kwargs):
+        def decorator(func: Callable) -> Callable:
+            @wraps(func)
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
                 decision = self.evaluate(
                     agent_id=agent_id,
                     action_type=action_type,
@@ -548,37 +524,44 @@ class PolicyMeshClient:
                     destination=destination,
                     description=description or f"Calling {func.__name__}",
                     metadata=metadata,
-                    trace=trace
+                    trace=trace,
                 )
                 if decision.is_blocked:
                     raise PolicyBlockedError(
-                        f"Function {func.__name__} blocked by PolicyMesh: {decision.policy_matched}",
+                        (
+                            f"Function {func.__name__} blocked by PolicyMesh: "
+                            f"{decision.policy_matched}"
+                        ),
                         action_id=decision.action_id,
-                        policy_matched=decision.policy_matched
+                        policy_matched=decision.policy_matched,
                     )
                 if self.raise_on_escalate and decision.is_escalated:
                     raise PolicyEscalateError(
-                        f"Function {func.__name__} requires approval: {decision.policy_matched}",
+                        (
+                            f"Function {func.__name__} requires approval: "
+                            f"{decision.policy_matched}"
+                        ),
                         action_id=decision.action_id,
-                        policy_matched=decision.policy_matched
+                        policy_matched=decision.policy_matched,
                     )
                 return func(*args, **kwargs)
+
             return wrapper
+
         return decorator
 
-    # ── ALLOW ─────────────────────────────────────────────────────────────────
-
-    def allow(self, agent_id: str, action_type: str, **kwargs) -> bool:
+    def allow(self, agent_id: str, action_type: str, **kwargs: Any) -> bool:
         """
-        Simple boolean check. Returns True if allowed, False if blocked.
-        Never raises exceptions — safe for use in conditional checks.
+        Boolean helper for simple checks.
 
-        Example:
-            if client.allow("my_agent", "data_export", record_count=500):
-                export_data()
+        Defaults to fail-closed. Set fail_open=True only for explicitly approved
+        telemetry-only deployments where availability is preferred over blocking.
         """
+
         try:
             decision = self.evaluate(agent_id=agent_id, action_type=action_type, **kwargs)
             return decision.is_allowed or decision.is_flagged
+        except (PolicyBlockedError, PolicyEscalateError):
+            return False
         except Exception:
-            return True
+            return bool(self.fail_open)
