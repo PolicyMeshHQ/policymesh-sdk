@@ -48,6 +48,26 @@ POLICYMESH_API_KEY=... \
 python scripts/staging_smoke.py
 ```
 
+Run admin bearer-auth smoke with a staging dashboard admin token:
+
+```bash
+POLICYMESH_API_URL=https://policymesh-staging.up.railway.app/api/v1 \
+POLICYMESH_ORG_ID=... \
+POLICYMESH_API_KEY=... \
+POLICYMESH_ADMIN_TOKEN=... \
+python scripts/admin_auth_smoke.py
+```
+
+The admin smoke must prove:
+
+- API-key-only admin calls are rejected.
+- SDK admin helpers fail before network without `admin_token`.
+- SDK `kill()` fails before network without `confirm="KILL-{agent_id}"`.
+- Bearer-auth kill succeeds.
+- Evaluation blocks the killed agent with `Agent Killswitch`.
+- Bearer-auth revive succeeds.
+- Evaluation no longer blocks the revived agent because of killswitch state.
+
 ## Release Checklist
 
 1. Confirm `pyproject.toml` and `policymesh.__version__` match.
@@ -55,8 +75,8 @@ python scripts/staging_smoke.py
 3. Confirm SDK issue links and validation evidence are posted.
 4. Tag the release after approval:
    ```bash
-   git tag v0.4.0
-   git push origin v0.4.0
+   git tag v0.4.1
+   git push origin v0.4.1
    ```
 5. Build from a clean checkout:
    ```bash

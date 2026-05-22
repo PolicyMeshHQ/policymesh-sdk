@@ -22,7 +22,7 @@ from policymesh.exceptions import (
 )
 from policymesh.models import Decision, PolicyDecision
 
-SDK_VERSION = "0.4.0"
+SDK_VERSION = "0.4.1"
 DEFAULT_API_URL = os.environ.get(
     "POLICYMESH_API_URL",
     "https://policymesh-production.up.railway.app/api/v1",
@@ -457,6 +457,7 @@ class PolicyMeshClient:
         reason: str | None = None,
         killed_by: str | None = None,
         expires_hours: int | None = None,
+        confirm: str | None = None,
         admin_token: str | None = None,
     ) -> dict:
         """Disable an agent using authenticated dashboard-user context."""
@@ -468,6 +469,13 @@ class PolicyMeshClient:
                 "authenticated dashboard user context."
             )
 
+        expected_confirm = f"KILL-{agent_id}"
+        if confirm != expected_confirm:
+            raise PolicyMeshValidationError(
+                "kill() requires explicit confirmation matching "
+                f"confirm='{expected_confirm}'."
+            )
+
         return self._request(
             "POST",
             f"/killswitch/{self.org_id}/agent",
@@ -476,6 +484,7 @@ class PolicyMeshClient:
                 "reason": reason or "Disabled via SDK",
                 "killed_by": killed_by,
                 "expires_hours": expires_hours,
+                "confirm": confirm,
             },
             bearer_token=token,
             include_api_key=False,

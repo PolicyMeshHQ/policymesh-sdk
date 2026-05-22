@@ -7,7 +7,7 @@ PolicyMesh lets teams evaluate agent actions before execution, scan untrusted in
 ## Current Package
 
 - Package: `policymesh`
-- Current SDK version: `0.4.0`
+- Current SDK version: `0.4.1`
 - Supported Python: `3.10+`
 - API base path: `/api/v1`
 - Default production API: `https://policymesh-production.up.railway.app/api/v1`
@@ -56,6 +56,16 @@ POLICYMESH_API_URL="https://policymesh-staging.up.railway.app/api/v1" \
 POLICYMESH_ORG_ID="your_staging_org_id" \
 POLICYMESH_API_KEY="your_staging_api_key" \
 python scripts/staging_smoke.py
+```
+
+For admin bearer-auth staging verification:
+
+```bash
+POLICYMESH_API_URL="https://policymesh-staging.up.railway.app/api/v1" \
+POLICYMESH_ORG_ID="your_staging_org_id" \
+POLICYMESH_API_KEY="your_staging_api_key" \
+POLICYMESH_ADMIN_TOKEN="your_staging_dashboard_bearer_token" \
+python scripts/admin_auth_smoke.py
 ```
 
 ## Core Flow
@@ -259,8 +269,11 @@ client = PolicyMeshClient(
     api_key="your_api_key",
     admin_token="dashboard_user_bearer_token",
 )
-
-client.kill("agent-id", reason="Approved incident response action")
+client.kill(
+    "agent-id",
+    reason="Approved incident response action",
+    confirm="KILL-agent-id",
+)
 ```
 
 ## Framework Examples

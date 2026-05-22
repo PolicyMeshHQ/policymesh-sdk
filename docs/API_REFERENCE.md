@@ -82,6 +82,10 @@ Administrative helpers. These require `admin_token` because backend killswitch
 routes require authenticated dashboard-user context. API-key-only agent clients
 should not use these methods for admin operations.
 
+`kill(agent_id, ..., confirm="KILL-{agent_id}")` also requires the explicit
+confirmation string and fails before making a network call when confirmation is
+missing or mismatched.
+
 ## Exceptions
 
 - `PolicyBlockedError`
