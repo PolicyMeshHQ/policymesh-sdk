@@ -8,7 +8,7 @@ from policymesh.exceptions import (
     PolicyMeshAuthError
 )
 
-__version__ = "0.1.0"
+__version__ = "0.4.0"
 __author__ = "PolicyMesh"
 __description__ = "Python SDK for the PolicyMesh AI Agent Control Platform"
 

@@ -1,5 +1,7 @@
-import requests
+import os
 from typing import Optional, List
+
+import requests
 from policymesh.models import AgentAction, PolicyDecision, Decision, ActionType, DataClassification
 from policymesh.exceptions import (
     PolicyBlockedError,
@@ -8,7 +10,10 @@ from policymesh.exceptions import (
     PolicyMeshAuthError
 )
 
-DEFAULT_API_URL = "https://policymesh-production.up.railway.app/api/v1"
+DEFAULT_API_URL = os.environ.get(
+    "POLICYMESH_API_URL",
+    "https://policymesh-production.up.railway.app/api/v1"
+)
 
 
 class TraceStep:
@@ -105,10 +110,9 @@ class PolicyMeshClient:
         scan()            — controls what agents SEE (input scanning)
         inspect_payload() — controls what agents SEND (output scanning)
 
-    Plus killswitch controls:
-
-        kill()            — instantly disable a specific agent
-        revive()          — re-enable a killed agent
+    Admin controls such as kill() and revive() require authenticated dashboard
+    user context in the backend. Do not rely on API-key-only SDK calls for
+    admin operations until that path is explicitly validated.
 
     Usage:
         from policymesh import PolicyMeshClient, TraceStep
@@ -463,8 +467,11 @@ class PolicyMeshClient:
         expires_hours: Optional[int] = None
     ) -> dict:
         """
-        Instantly disable an agent. All evaluate() calls from this agent
-        will return BLOCK immediately until revived.
+        Administrative helper for disabling an agent.
+
+        Current backend killswitch routes require authenticated dashboard user
+        context and organization access checks. API-key-only agent clients
+        should not rely on this method until the admin SDK path is validated.
 
         Args:
             agent_id      The agent to kill
@@ -473,13 +480,6 @@ class PolicyMeshClient:
             expires_hours Auto-revive after this many hours (None = permanent)
 
         Returns dict with success status and message.
-
-        Example:
-            client.kill(
-                agent_id="rogue_agent_01",
-                reason="Suspicious data access pattern detected",
-                killed_by="security@company.com"
-            )
         """
         payload = {
             "agent_id": agent_id,
@@ -494,16 +494,27 @@ class PolicyMeshClient:
                 headers=self._headers(),
                 timeout=10
             )
+            if response.status_code in (401, 403):
+                raise PolicyMeshAuthError(
+                    "Killswitch operations require authenticated dashboard user context."
+                )
+            if response.status_code not in (200, 201):
+                raise PolicyMeshConnectionError(
+                    f"PolicyMesh API returned {response.status_code}: {response.text}"
+                )
             return response.json()
+        except (PolicyMeshAuthError, PolicyMeshConnectionError):
+            raise
         except Exception as e:
             raise PolicyMeshConnectionError(f"Kill failed: {e}")
 
     def revive(self, agent_id: str) -> dict:
         """
-        Re-enable a killed agent.
+        Administrative helper for re-enabling a disabled agent.
 
-        Example:
-            client.revive("rogue_agent_01")
+        Current backend killswitch routes require authenticated dashboard user
+        context and organization access checks. API-key-only agent clients
+        should not rely on this method until the admin SDK path is validated.
         """
         try:
             response = requests.delete(
@@ -511,7 +522,17 @@ class PolicyMeshClient:
                 headers=self._headers(),
                 timeout=10
             )
+            if response.status_code in (401, 403):
+                raise PolicyMeshAuthError(
+                    "Killswitch operations require authenticated dashboard user context."
+                )
+            if response.status_code not in (200, 201):
+                raise PolicyMeshConnectionError(
+                    f"PolicyMesh API returned {response.status_code}: {response.text}"
+                )
             return response.json()
+        except (PolicyMeshAuthError, PolicyMeshConnectionError):
+            raise
         except Exception as e:
             raise PolicyMeshConnectionError(f"Revive failed: {e}")
 
@@ -571,14 +592,15 @@ class PolicyMeshClient:
     def allow(self, agent_id: str, action_type: str, **kwargs) -> bool:
         """
         Simple boolean check. Returns True if allowed, False if blocked.
-        Never raises exceptions — safe for use in conditional checks.
+        Fails closed on SDK, API, auth, and policy exceptions.
 
-        Example:
-            if client.allow("my_agent", "data_export", record_count=500):
-                export_data()
+        Prefer evaluate() or guard() for enforcement paths where the caller
+        needs full decision and error details.
         """
         try:
             decision = self.evaluate(agent_id=agent_id, action_type=action_type, **kwargs)
             return decision.is_allowed or decision.is_flagged
+        except (PolicyBlockedError, PolicyEscalateError):
+            return False
         except Exception:
-            return True
+            return False

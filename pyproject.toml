@@ -6,14 +6,14 @@ build-backend = "setuptools.build_meta"
 name = "policymesh"
 version = "0.4.0"
 authors = [
-  { name="PolicyMesh", email="ian@policymesh.net" }
+  { name="PolicyMesh", email="support@policymesh.net" }
 ]
 description = "Python SDK for the PolicyMesh AI Agent Control Platform"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Security",
     "Topic :: Software Development :: Libraries :: Python Modules",
