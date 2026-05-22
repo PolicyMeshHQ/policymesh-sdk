@@ -11,6 +11,8 @@ PolicyMesh lets teams evaluate agent actions before execution, scan untrusted in
 - API base path: `/api/v1`
 - Default production API: `https://policymesh-production.up.railway.app/api/v1`
 - Source repo: `https://github.com/Hail15/policymesh-sdk`
+- API reference: [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md)
+- Release controls: [`docs/RELEASE.md`](docs/RELEASE.md)
 
 For demos, tests, and pilots, pass the environment-specific API URL supplied by PolicyMesh. Do not use production for test data, stress testing, or demo setup unless production use has been explicitly approved.
 
@@ -29,6 +31,8 @@ client = PolicyMeshClient(
     org_id="your_org_id",
     api_key="your_api_key",
     api_url="https://policymesh-production.up.railway.app/api/v1",
+    timeout=10,
+    max_retries=0,
 )
 ```
 
@@ -38,6 +42,19 @@ You can also set `POLICYMESH_API_URL` before importing the SDK:
 
 ```bash
 export POLICYMESH_API_URL="https://policymesh-production.up.railway.app/api/v1"
+```
+
+SDK action helpers default the action `environment` field to `development`.
+Pass `environment="staging"` or `environment="production"` only when the
+target environment is intentional and approved.
+
+For staging smoke tests:
+
+```bash
+POLICYMESH_API_URL="https://policymesh-staging.up.railway.app/api/v1" \
+POLICYMESH_ORG_ID="your_staging_org_id" \
+POLICYMESH_API_KEY="your_staging_api_key" \
+python scripts/staging_smoke.py
 ```
 
 ## Core Flow
@@ -221,9 +238,58 @@ With `raise_on_block=True`, blocked actions raise `PolicyBlockedError`. With `ra
 
 `client.allow(...)` is a convenience wrapper for simple conditional logic. For enforcement paths, prefer `evaluate()` or `guard()` so the caller can handle block, escalate, flag, auth failure, rate limit, and connection failure explicitly.
 
+`allow()` fails closed by default. If a telemetry-only deployment needs fail-open behavior, it must be explicitly configured:
+
+```python
+client = PolicyMeshClient(
+    org_id="your_org_id",
+    api_key="your_api_key",
+    fail_open=True,
+)
+```
+
 ## Admin Controls
 
-Agent killswitch and revive operations are administrative controls in the PolicyMesh backend. They require authenticated user context and organization access checks. Do not rely on API-key-only SDK calls for admin operations until the admin SDK path is explicitly validated.
+Agent killswitch and revive operations are administrative controls in the PolicyMesh backend. They require authenticated user context and organization access checks. API-key-only agent clients cannot perform admin operations.
+
+```python
+client = PolicyMeshClient(
+    org_id="your_org_id",
+    api_key="your_api_key",
+    admin_token="dashboard_user_bearer_token",
+)
+
+client.kill("agent-id", reason="Approved incident response action")
+```
+
+## Framework Examples
+
+Runnable dry-run examples are included for:
+
+- OpenAI: [`examples/openai_agent.py`](examples/openai_agent.py)
+- Claude: [`examples/anthropic_claude_agent.py`](examples/anthropic_claude_agent.py)
+- LangChain: [`examples/langchain_agent.py`](examples/langchain_agent.py)
+- CrewAI: [`examples/crewai_agent.py`](examples/crewai_agent.py)
+- Custom agents: [`examples/custom_agent.py`](examples/custom_agent.py)
+
+The examples run without live credentials using a dry-run client. Set `POLICYMESH_ORG_ID`, `POLICYMESH_API_KEY`, and `POLICYMESH_API_URL` to run them against a real environment.
+
+## Error Handling
+
+SDK API exceptions inherit from `PolicyMeshError` and include request context where available.
+
+Common errors:
+
+- `PolicyMeshAuthError`
+- `PolicyMeshForbiddenError`
+- `PolicyMeshValidationError`
+- `PolicyMeshRateLimitError`
+- `PolicyMeshServerError`
+- `PolicyMeshTimeoutError`
+- `PolicyMeshConnectionError`
+- `PolicyMeshUnexpectedResponseError`
+
+The SDK sends a `User-Agent`, `X-PolicyMesh-SDK`, and `X-Request-ID` header with API calls to help correlate SDK calls with API-side evidence.
 
 ## Sensitive Data Guidance
 
@@ -239,5 +305,7 @@ The SDK can send action descriptions, metadata, traces, scanned input, and paylo
 ## Links
 
 - [Dashboard](https://policymesh.net)
+- [API reference](docs/API_REFERENCE.md)
+- [Release controls](docs/RELEASE.md)
 - [SDK issues](https://github.com/Hail15/policymesh-sdk/issues)
 - [SDK source](https://github.com/Hail15/policymesh-sdk)

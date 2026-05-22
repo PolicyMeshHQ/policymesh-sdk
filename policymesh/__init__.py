@@ -1,12 +1,18 @@
-from policymesh.client import PolicyMeshClient
-from policymesh.models import AgentAction, PolicyDecision, ActionType, DataClassification, Decision
+from policymesh.client import PolicyMeshClient, ScanResult, TraceStep
 from policymesh.exceptions import (
-    PolicyMeshError,
     PolicyBlockedError,
     PolicyEscalateError,
+    PolicyMeshAuthError,
     PolicyMeshConnectionError,
-    PolicyMeshAuthError
+    PolicyMeshError,
+    PolicyMeshForbiddenError,
+    PolicyMeshRateLimitError,
+    PolicyMeshServerError,
+    PolicyMeshTimeoutError,
+    PolicyMeshUnexpectedResponseError,
+    PolicyMeshValidationError,
 )
+from policymesh.models import ActionType, AgentAction, DataClassification, Decision, PolicyDecision
 
 __version__ = "0.4.0"
 __author__ = "PolicyMesh"
@@ -14,6 +20,8 @@ __description__ = "Python SDK for the PolicyMesh AI Agent Control Platform"
 
 __all__ = [
     "PolicyMeshClient",
+    "ScanResult",
+    "TraceStep",
     "AgentAction",
     "PolicyDecision",
     "ActionType",
@@ -22,6 +30,12 @@ __all__ = [
     "PolicyMeshError",
     "PolicyBlockedError",
     "PolicyEscalateError",
+    "PolicyMeshAuthError",
     "PolicyMeshConnectionError",
-    "PolicyMeshAuthError"
+    "PolicyMeshForbiddenError",
+    "PolicyMeshRateLimitError",
+    "PolicyMeshServerError",
+    "PolicyMeshTimeoutError",
+    "PolicyMeshUnexpectedResponseError",
+    "PolicyMeshValidationError",
 ]

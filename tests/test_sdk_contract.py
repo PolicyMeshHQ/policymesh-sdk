@@ -1,5 +1,9 @@
+import os
+import runpy
+import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 try:
     import tomllib
@@ -8,7 +12,6 @@ except ModuleNotFoundError:  # pragma: no cover
 
 import policymesh
 from policymesh.models import ActionType
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -51,6 +54,48 @@ class SdkContractTests(unittest.TestCase):
             pyproject_version = tomllib.load(fh)["project"]["version"]
 
         self.assertEqual(policymesh.__version__, pyproject_version)
+
+    def test_package_includes_type_marker(self):
+        self.assertTrue((ROOT / "policymesh" / "py.typed").exists())
+
+    def test_required_docs_exist(self):
+        self.assertTrue((ROOT / "docs" / "API_REFERENCE.md").exists())
+        self.assertTrue((ROOT / "docs" / "RELEASE.md").exists())
+        self.assertTrue((ROOT / "CHANGELOG.md").exists())
+        self.assertTrue((ROOT / "MANIFEST.in").exists())
+
+    def test_examples_are_runnable_without_live_credentials(self):
+        examples_dir = str(ROOT / "examples")
+        original_path = list(sys.path)
+        sys.path.insert(0, examples_dir)
+        try:
+            with patch.dict(os.environ, {}, clear=True):
+                for example in [
+                    "custom_agent.py",
+                    "openai_agent.py",
+                    "anthropic_claude_agent.py",
+                    "langchain_agent.py",
+                    "crewai_agent.py",
+                ]:
+                    with self.subTest(example=example):
+                        runpy.run_path(str(ROOT / "examples" / example), run_name="__main__")
+        finally:
+            sys.path = original_path
+
+    def test_staging_smoke_refuses_production_without_confirmation(self):
+        with patch.dict(
+            os.environ,
+            {
+                "POLICYMESH_API_URL": "https://policymesh-production.up.railway.app/api/v1",
+                "POLICYMESH_ORG_ID": "org-1",
+                "POLICYMESH_API_KEY": "key-1",
+            },
+            clear=True,
+        ):
+            with self.assertRaises(SystemExit) as context:
+                runpy.run_path(str(ROOT / "scripts" / "staging_smoke.py"), run_name="__main__")
+
+        self.assertEqual(context.exception.code, 2)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Optional
 from enum import Enum
+from typing import Optional
 
 
 class ActionType(str, Enum):
@@ -52,7 +52,7 @@ class AgentAction:
     org_id: str
     action_type: ActionType
     data_classification: DataClassification = DataClassification.INTERNAL
-    environment: str = "production"
+    environment: str = "development"
     record_count: int = 0
     destination: Optional[str] = None
     description: Optional[str] = None
