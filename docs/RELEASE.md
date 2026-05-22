@@ -68,6 +68,27 @@ The admin smoke must prove:
 - Bearer-auth revive succeeds.
 - Evaluation no longer blocks the revived agent because of killswitch state.
 
+Run runtime enforcement proof with isolated staging proof orgs:
+
+```bash
+POLICYMESH_API_URL=https://policymesh-staging.up.railway.app/api/v1 \
+POLICYMESH_AUDIT_ORG_ID=... \
+POLICYMESH_AUDIT_API_KEY=... \
+POLICYMESH_ENFORCEMENT_ORG_ID=... \
+POLICYMESH_ENFORCEMENT_API_KEY=... \
+POLICYMESH_SUPABASE_URL=https://...supabase.co \
+POLICYMESH_SUPABASE_SERVICE_ROLE_KEY=... \
+python scripts/enforcement_proof.py --output enforcement-proof.json
+```
+
+The enforcement proof must show:
+
+- Audit mode records would-have-blocked and allows the harmless downstream stub.
+- Enforcement mode blocks before the downstream stub runs.
+- Enforcement escalation creates a pending approval.
+- SDK boolean fallback fails closed by default and only fails open when explicitly configured.
+- Staging latency is captured against the approved proof threshold.
+
 ## Release Checklist
 
 1. Confirm `pyproject.toml` and `policymesh.__version__` match.

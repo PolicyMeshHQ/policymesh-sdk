@@ -1,8 +1,14 @@
+# ruff: noqa: E402,I001
 import os
 import sys
 import uuid
+from pathlib import Path
 
 import requests
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from policymesh import (
     PolicyMeshAuthError,

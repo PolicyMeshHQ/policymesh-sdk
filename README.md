@@ -68,6 +68,22 @@ POLICYMESH_ADMIN_TOKEN="your_staging_dashboard_bearer_token" \
 python scripts/admin_auth_smoke.py
 ```
 
+For runtime enforcement proof, use isolated staging proof orgs rather than the
+clean demo org. The harness proves audit-mode would-have-blocked behavior,
+SDK pre-execution blocking, escalation-to-approval behavior, failure posture,
+and staging latency:
+
+```bash
+POLICYMESH_API_URL="https://policymesh-staging.up.railway.app/api/v1" \
+POLICYMESH_AUDIT_ORG_ID="audit_proof_org_id" \
+POLICYMESH_AUDIT_API_KEY="audit_proof_api_key" \
+POLICYMESH_ENFORCEMENT_ORG_ID="enforcement_proof_org_id" \
+POLICYMESH_ENFORCEMENT_API_KEY="enforcement_proof_api_key" \
+POLICYMESH_SUPABASE_URL="https://your-project.supabase.co" \
+POLICYMESH_SUPABASE_SERVICE_ROLE_KEY="your_service_role_key" \
+python scripts/enforcement_proof.py --output enforcement-proof.json
+```
+
 ## Core Flow
 
 A normal integration has three checkpoints:
@@ -169,6 +185,9 @@ def deploy_to_production():
 
 deploy_to_production()
 ```
+
+In enforcement mode, a blocked decision raises before the decorated function is
+called. That is the SDK-level pre-execution control path.
 
 ## Tool And Payload Checks
 

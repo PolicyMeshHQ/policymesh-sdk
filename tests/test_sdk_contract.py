@@ -68,6 +68,7 @@ class SdkContractTests(unittest.TestCase):
         self.assertTrue((ROOT / "MANIFEST.in").exists())
         self.assertTrue((ROOT / "scripts" / "staging_smoke.py").exists())
         self.assertTrue((ROOT / "scripts" / "admin_auth_smoke.py").exists())
+        self.assertTrue((ROOT / "scripts" / "enforcement_proof.py").exists())
 
     def test_examples_are_runnable_without_live_credentials(self):
         examples_dir = str(ROOT / "examples")
@@ -114,6 +115,25 @@ class SdkContractTests(unittest.TestCase):
         ):
             with self.assertRaises(SystemExit) as context:
                 runpy.run_path(str(ROOT / "scripts" / "admin_auth_smoke.py"), run_name="__main__")
+
+        self.assertEqual(context.exception.code, 2)
+
+    def test_enforcement_proof_refuses_production_without_confirmation(self):
+        with patch.dict(
+            os.environ,
+            {
+                "POLICYMESH_API_URL": "https://policymesh-production.up.railway.app/api/v1",
+                "POLICYMESH_AUDIT_ORG_ID": "audit-org",
+                "POLICYMESH_AUDIT_API_KEY": "audit-key",
+                "POLICYMESH_ENFORCEMENT_ORG_ID": "enforcement-org",
+                "POLICYMESH_ENFORCEMENT_API_KEY": "enforcement-key",
+                "POLICYMESH_SUPABASE_URL": "https://example.supabase.co",
+                "POLICYMESH_SUPABASE_SERVICE_ROLE_KEY": "service-key",
+            },
+            clear=True,
+        ), patch.object(sys, "argv", [str(ROOT / "scripts" / "enforcement_proof.py")]):
+            with self.assertRaises(SystemExit) as context:
+                runpy.run_path(str(ROOT / "scripts" / "enforcement_proof.py"), run_name="__main__")
 
         self.assertEqual(context.exception.code, 2)
 

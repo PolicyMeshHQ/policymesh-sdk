@@ -71,6 +71,11 @@ Returns `ScanResult`.
 
 Decorator that evaluates a policy before running a function.
 
+When the API returns `block`, `guard()` raises before the protected function is
+called. When `raise_on_escalate=True`, an `escalate` decision also raises before
+the function is called. Use this path for customer workflows where PolicyMesh
+must prevent execution before the downstream action occurs.
+
 ### `allow(...)`
 
 Convenience boolean wrapper. Defaults to fail-closed. Prefer `evaluate()` or
