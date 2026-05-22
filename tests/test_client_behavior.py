@@ -227,6 +227,59 @@ class ClientBehaviorTests(unittest.TestCase):
 
         self.assertEqual(payload["environment"], "development")
 
+    def test_guard_allows_function_when_decision_allows(self):
+        self.client.evaluate = lambda *args, **kwargs: _decision("allow")
+        calls = []
+
+        @self.client.guard(action_type="data_access", agent_id="agent-1")
+        def protected_action():
+            calls.append("ran")
+            return "ok"
+
+        self.assertEqual(protected_action(), "ok")
+        self.assertEqual(calls, ["ran"])
+
+    def test_guard_blocks_before_function_executes(self):
+        self.client.evaluate = _raises(
+            PolicyBlockedError(
+                "blocked",
+                action_id="action-1",
+                policy_matched="Production Deploy Block",
+            )
+        )
+        calls = []
+
+        @self.client.guard(
+            action_type="production_deploy",
+            agent_id="agent-1",
+            environment="production",
+        )
+        def protected_action():
+            calls.append("ran")
+
+        with self.assertRaises(PolicyBlockedError):
+            protected_action()
+
+        self.assertEqual(calls, [])
+
+    def test_guard_escalation_can_stop_function_when_enabled(self):
+        client = PolicyMeshClient(
+            org_id="org-1",
+            api_key="key-1",
+            raise_on_escalate=True,
+        )
+        client.evaluate = lambda *args, **kwargs: _decision("escalate")
+        calls = []
+
+        @client.guard(action_type="database_write", agent_id="agent-1")
+        def protected_action():
+            calls.append("ran")
+
+        with self.assertRaises(PolicyEscalateError):
+            protected_action()
+
+        self.assertEqual(calls, [])
+
 
 if __name__ == "__main__":
     unittest.main()
