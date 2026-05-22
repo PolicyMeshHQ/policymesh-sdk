@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.4.0 - Unreleased Hardening Baseline
+## 0.4.1 - Unreleased Pilot Gate
+
+- Require explicit SDK killswitch confirmation before calling admin kill routes.
+- Add live smoke tooling for staging API-key tenant binding and admin bearer-auth checks.
+- Add release workflow checks that reject tag/package version mismatch.
+
+## 0.4.0 - Hardening Baseline
 
 - Align package metadata around `pyproject.toml`.
 - Align SDK version export with package version.

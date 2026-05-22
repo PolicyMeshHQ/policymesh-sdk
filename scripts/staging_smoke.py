@@ -1,7 +1,8 @@
 import os
 import sys
+import uuid
 
-from policymesh import PolicyMeshClient
+from policymesh import PolicyMeshAuthError, PolicyMeshClient, PolicyMeshForbiddenError
 
 
 def require_env(name):
@@ -56,6 +57,35 @@ def main():
         approved_domains=["api.partner.example"],
     )
     print(f"payload recommendation={payload.recommendation} risk_score={payload.risk_score}")
+
+    wrong_org_id = os.environ.get("POLICYMESH_WRONG_ORG_ID", f"sdk-wrong-org-{uuid.uuid4()}")
+    wrong_org_client = PolicyMeshClient(
+        org_id=wrong_org_id,
+        api_key=require_env("POLICYMESH_API_KEY"),
+        api_url=require_env("POLICYMESH_API_URL"),
+        raise_on_block=False,
+    )
+    try:
+        wrong_org_client.evaluate(
+            agent_id="sdk-smoke-agent",
+            action_type="model_call",
+            data_classification="internal",
+            environment="staging",
+            description="SDK staging wrong-org tenant isolation smoke",
+        )
+    except (PolicyMeshAuthError, PolicyMeshForbiddenError) as exc:
+        if getattr(exc, "status_code", None) not in (401, 403):
+            print(
+                "tenant isolation negative check failed with unexpected auth status: "
+                f"{getattr(exc, 'status_code', None)}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        print("tenant isolation negative check passed: wrong org rejected")
+    else:
+        print("tenant isolation negative check failed: wrong org was accepted", file=sys.stderr)
+        sys.exit(1)
+
     print("sdk staging smoke completed")
 
 

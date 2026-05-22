@@ -11,6 +11,7 @@ except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib
 
 import policymesh
+from policymesh.client import SDK_VERSION
 from policymesh.models import ActionType
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +55,7 @@ class SdkContractTests(unittest.TestCase):
             project = tomllib.load(fh)["project"]
 
         self.assertEqual(policymesh.__version__, project["version"])
+        self.assertEqual(SDK_VERSION, project["version"])
         self.assertEqual(project["requires-python"], ">=3.10")
 
     def test_package_includes_type_marker(self):
@@ -64,6 +66,8 @@ class SdkContractTests(unittest.TestCase):
         self.assertTrue((ROOT / "docs" / "RELEASE.md").exists())
         self.assertTrue((ROOT / "CHANGELOG.md").exists())
         self.assertTrue((ROOT / "MANIFEST.in").exists())
+        self.assertTrue((ROOT / "scripts" / "staging_smoke.py").exists())
+        self.assertTrue((ROOT / "scripts" / "admin_auth_smoke.py").exists())
 
     def test_examples_are_runnable_without_live_credentials(self):
         examples_dir = str(ROOT / "examples")
@@ -95,6 +99,21 @@ class SdkContractTests(unittest.TestCase):
         ):
             with self.assertRaises(SystemExit) as context:
                 runpy.run_path(str(ROOT / "scripts" / "staging_smoke.py"), run_name="__main__")
+
+        self.assertEqual(context.exception.code, 2)
+
+    def test_admin_auth_smoke_refuses_production_without_confirmation(self):
+        with patch.dict(
+            os.environ,
+            {
+                "POLICYMESH_API_URL": "https://policymesh-production.up.railway.app/api/v1",
+                "POLICYMESH_ORG_ID": "org-1",
+                "POLICYMESH_API_KEY": "key-1",
+            },
+            clear=True,
+        ):
+            with self.assertRaises(SystemExit) as context:
+                runpy.run_path(str(ROOT / "scripts" / "admin_auth_smoke.py"), run_name="__main__")
 
         self.assertEqual(context.exception.code, 2)
 

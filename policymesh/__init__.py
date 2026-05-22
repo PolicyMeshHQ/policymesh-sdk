@@ -14,7 +14,7 @@ from policymesh.exceptions import (
 )
 from policymesh.models import ActionType, AgentAction, DataClassification, Decision, PolicyDecision
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 __author__ = "PolicyMesh"
 __description__ = "Python SDK for the PolicyMesh AI Agent Control Platform"
 

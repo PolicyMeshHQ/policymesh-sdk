@@ -151,8 +151,8 @@ class ClientBehaviorTests(unittest.TestCase):
         headers = client.session.calls[0][2]["headers"]
 
         self.assertEqual(headers["x-api-key"], "key-1")
-        self.assertIn("policymesh-python/0.4.0", headers["User-Agent"])
-        self.assertEqual(headers["X-PolicyMesh-SDK"], "python/0.4.0")
+        self.assertIn("policymesh-python/0.4.1", headers["User-Agent"])
+        self.assertEqual(headers["X-PolicyMesh-SDK"], "python/0.4.1")
         self.assertTrue(headers["X-Request-ID"])
 
     def test_admin_methods_require_admin_token_before_network(self):
@@ -166,6 +166,20 @@ class ClientBehaviorTests(unittest.TestCase):
 
         self.assertEqual(session.calls, [])
 
+    def test_kill_requires_explicit_confirmation_before_network(self):
+        session = _Session(_Response(200, {"success": True}))
+        client = PolicyMeshClient(
+            org_id="org-1",
+            api_key="key-1",
+            admin_token="admin-token",
+            session=session,
+        )
+
+        with self.assertRaises(PolicyMeshValidationError):
+            client.kill("agent-1")
+
+        self.assertEqual(session.calls, [])
+
     def test_admin_methods_use_bearer_token_without_api_key(self):
         session = _Session(_Response(200, {"success": True}))
         client = PolicyMeshClient(
@@ -175,11 +189,13 @@ class ClientBehaviorTests(unittest.TestCase):
             session=session,
         )
 
-        client.kill("agent-1")
+        client.kill("agent-1", confirm="KILL-agent-1")
         headers = session.calls[0][2]["headers"]
+        payload = session.calls[0][2]["json"]
 
         self.assertEqual(headers["Authorization"], "Bearer admin-token")
         self.assertNotIn("x-api-key", headers)
+        self.assertEqual(payload["confirm"], "KILL-agent-1")
 
     def test_no_content_success_returns_empty_dict(self):
         client = PolicyMeshClient(
