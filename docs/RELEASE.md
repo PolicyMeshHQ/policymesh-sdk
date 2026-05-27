@@ -22,12 +22,19 @@ from a workstation is reserved for approved break-glass release response.
 Run and attach evidence to the release PR:
 
 ```bash
+python -m ruff check policymesh tests examples scripts
+python -m mypy policymesh
 python -m py_compile $(find policymesh tests examples scripts -name '*.py' -type f | sort)
+python -m bandit -q -r policymesh tests examples scripts -ll
 python -m unittest discover -s tests
 python -m build
 python -m twine check dist/*
 pip-audit --local
 ```
+
+The SDK intentionally uses Python `unittest` as the release test runner today.
+Do not add `pytest` as a required release dependency unless the test suite is
+converted and the CI/release workflows are updated in the same change.
 
 Run examples in dry-run mode:
 

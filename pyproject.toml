@@ -29,6 +29,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "bandit>=1.7.10",
     "build>=1.2.0",
     "mypy>=1.8.0,<1.15",
     "pip-audit>=2.7.0",
