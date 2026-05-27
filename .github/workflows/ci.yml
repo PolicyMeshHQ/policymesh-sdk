@@ -31,6 +31,7 @@ jobs:
           python -m ruff check policymesh tests examples scripts
           python -m mypy policymesh
           python -m py_compile $(find policymesh tests examples scripts -name '*.py' -type f | sort)
+          python -m bandit -q -r policymesh tests examples scripts -ll
 
       - name: Unit tests
         run: python -m unittest discover -s tests
