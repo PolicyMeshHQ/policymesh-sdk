@@ -303,9 +303,11 @@ Runnable dry-run examples are included for:
 - Claude: [`examples/anthropic_claude_agent.py`](examples/anthropic_claude_agent.py)
 - LangChain: [`examples/langchain_agent.py`](examples/langchain_agent.py)
 - CrewAI: [`examples/crewai_agent.py`](examples/crewai_agent.py)
+- MCP/tool gateway: [`examples/mcp_tool_gateway.py`](examples/mcp_tool_gateway.py)
 - Custom agents: [`examples/custom_agent.py`](examples/custom_agent.py)
 
 The examples run without live credentials using a dry-run client. Set `POLICYMESH_ORG_ID`, `POLICYMESH_API_KEY`, and `POLICYMESH_API_URL` to run them against a real environment.
+When live credentials are supplied, the examples use `raise_on_block=True` and `raise_on_escalate=True` so block and escalation decisions stop before the downstream model, tool, gateway, or output action executes. The SDK default failure posture remains fail-closed unless `fail_open=True` is set explicitly.
 
 ## Error Handling
 
