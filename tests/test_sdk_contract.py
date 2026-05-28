@@ -82,6 +82,7 @@ class SdkContractTests(unittest.TestCase):
                     "anthropic_claude_agent.py",
                     "langchain_agent.py",
                     "crewai_agent.py",
+                    "mcp_tool_gateway.py",
                 ]:
                     with self.subTest(example=example):
                         runpy.run_path(str(ROOT / "examples" / example), run_name="__main__")

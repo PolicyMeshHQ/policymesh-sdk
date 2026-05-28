@@ -41,7 +41,12 @@ def example_client():
     if not org_id or not api_key:
         return DryRunClient()
 
-    kwargs = {"org_id": org_id, "api_key": api_key, "raise_on_block": True}
+    kwargs = {
+        "org_id": org_id,
+        "api_key": api_key,
+        "raise_on_block": True,
+        "raise_on_escalate": True,
+    }
     if api_url:
         kwargs["api_url"] = api_url
     return PolicyMeshClient(**kwargs)

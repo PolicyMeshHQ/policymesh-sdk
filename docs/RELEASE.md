@@ -44,6 +44,7 @@ python examples/openai_agent.py
 python examples/anthropic_claude_agent.py
 python examples/langchain_agent.py
 python examples/crewai_agent.py
+python examples/mcp_tool_gateway.py
 ```
 
 Run staging smoke with pilot-safe credentials:
