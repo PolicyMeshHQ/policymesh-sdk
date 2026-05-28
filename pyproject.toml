@@ -41,8 +41,8 @@ dev = [
 
 [project.urls]
 "Homepage" = "https://policymesh.net"
-"Bug Tracker" = "https://github.com/Hail15/policymesh-sdk/issues"
-"Documentation" = "https://github.com/Hail15/policymesh-sdk"
+"Bug Tracker" = "https://github.com/PolicyMeshHQ/policymesh-sdk/issues"
+"Documentation" = "https://github.com/PolicyMeshHQ/policymesh-sdk"
 
 [tool.setuptools.packages.find]
 where = ["."]

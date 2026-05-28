@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.1 - Unreleased Pilot Gate
+## 0.4.1 - 2026-05-28
 
 - Require explicit SDK killswitch confirmation before calling admin kill routes.
 - Add live smoke tooling for staging API-key tenant binding and admin bearer-auth checks.
