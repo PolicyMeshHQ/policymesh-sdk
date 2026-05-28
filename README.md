@@ -11,7 +11,7 @@ PolicyMesh lets teams evaluate agent actions before execution, scan untrusted in
 - Supported Python: `3.10+`
 - API base path: `/api/v1`
 - Default production API: `https://policymesh-production.up.railway.app/api/v1`
-- Source repo: `https://github.com/Hail15/policymesh-sdk`
+- Source repo: `https://github.com/PolicyMeshHQ/policymesh-sdk`
 - API reference: [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md)
 - Release controls: [`docs/RELEASE.md`](docs/RELEASE.md)
 
@@ -340,5 +340,5 @@ The SDK can send action descriptions, metadata, traces, scanned input, and paylo
 - [Dashboard](https://policymesh.net)
 - [API reference](docs/API_REFERENCE.md)
 - [Release controls](docs/RELEASE.md)
-- [SDK issues](https://github.com/Hail15/policymesh-sdk/issues)
-- [SDK source](https://github.com/Hail15/policymesh-sdk)
+- [SDK issues](https://github.com/PolicyMeshHQ/policymesh-sdk/issues)
+- [SDK source](https://github.com/PolicyMeshHQ/policymesh-sdk)
